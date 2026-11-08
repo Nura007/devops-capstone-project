@@ -1,38 +1,77 @@
-#
-# This pipeline needs the following tasks from Tekton Catalog
-#   - git-clone
-#   - flake8
-#
----
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
-metadata:  
+metadata:
   name: cd-pipeline
 spec:
+  description: Clone, lint, test, build, push and deploy the Accounts service.
   workspaces:
     - name: pipeline-workspace
   params:
     - name: repo-url
+      type: string
+      description: Public Git repository to build.
     - name: branch
+      type: string
       default: main
+    - name: build-image
+      type: string
+      description: Complete registry/repository:tag for the resulting image.
   tasks:
     - name: init
-      workspaces:
-        - name: source
-          workspace: pipeline-workspace          
       taskRef:
         name: cleanup
-
-    - name: clone
       workspaces:
-        - name: output
-          workspace: pipeline-workspace          
+        - name: source
+          workspace: pipeline-workspace
+    - name: clone
+      runAfter: [init]
       taskRef:
         name: git-clone
       params:
-      - name: url
-        value: $(params.repo-url)
-      - name: revision
-        value: $(params.branch)
-      runAfter:
-        - init
+        - name: url
+          value: $(params.repo-url)
+        - name: revision
+          value: $(params.branch)
+      workspaces:
+        - name: output
+          workspace: pipeline-workspace
+    - name: lint
+      runAfter: [clone]
+      taskRef:
+        name: flake8
+      params:
+        - name: image
+          value: python:3.9-slim
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+    - name: tests
+      runAfter: [clone]
+      taskRef:
+        name: nose
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+    - name: build
+      runAfter: [lint, tests]
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      params:
+        - name: IMAGE
+          value: $(params.build-image)
+        - name: STORAGE_DRIVER
+          value: vfs
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+    - name: deploy
+      runAfter: [build]
+      taskRef:
+        name: deploy-accounts
+      params:
+        - name: image
+          value: $(params.build-image)
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace

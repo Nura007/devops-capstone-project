@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: accounts
+  labels:
+    app: accounts
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: accounts
+  template:
+    metadata:
+      labels:
+        app: accounts
+    spec:
+      containers:
+        - name: accounts
+          image: accounts:1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DATABASE_HOST
+              value: postgresql
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql
+                  key: database-name
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql
+                  key: database-user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql
+                  key: database-password
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: accounts-config
+                  key: secret-key
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: [ALL]
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20

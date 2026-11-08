@@ -5,6 +5,7 @@ Test cases for Account Model
 import logging
 import unittest
 import os
+from datetime import date
 from service import app
 from service.models import Account, DataValidationError, db
 from tests.factories import AccountFactory
@@ -175,3 +176,28 @@ class TestAccount(unittest.TestCase):
         """It should not Deserialize an account with a TypeError"""
         account = Account()
         self.assertRaises(DataValidationError, account.deserialize, [])
+
+    def test_account_representation(self):
+        """It should include the account name and identifier in its representation"""
+        account = AccountFactory()
+        self.assertEqual(repr(account), f"<Account {account.name} id=[{account.id}]>")
+
+    def test_deserialize_optional_fields(self):
+        """It should default omitted date and phone fields appropriately"""
+        account = Account().deserialize(
+            {"name": "Alex", "email": "alex@example.com", "address": "1 Main St"}
+        )
+        self.assertEqual(account.date_joined, date.today())
+        self.assertIsNone(account.phone_number)
+
+    def test_deserialize_invalid_date(self):
+        """It should reject invalid dates with a data validation error"""
+        payload = AccountFactory().serialize()
+        payload["date_joined"] = "not-a-date"
+        self.assertRaises(DataValidationError, Account().deserialize, payload)
+
+    def test_deserialize_invalid_date_type(self):
+        """It should reject a date value that is not a string"""
+        payload = AccountFactory().serialize()
+        payload["date_joined"] = 123
+        self.assertRaises(DataValidationError, Account().deserialize, payload)

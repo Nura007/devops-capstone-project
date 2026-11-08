@@ -3,8 +3,7 @@ Account Service
 
 This microservice handles the lifecycle of Accounts
 """
-# pylint: disable=unused-import
-from flask import jsonify, request, make_response, abort, url_for   # noqa; F401
+from flask import jsonify, request, make_response, abort, url_for
 from service.models import Account
 from service.common import status  # HTTP Status Codes
 from . import app  # Import Flask application
@@ -29,7 +28,7 @@ def index():
         jsonify(
             name="Account REST API Service",
             version="1.0",
-            # paths=url_for("list_accounts", _external=True),
+            paths=url_for("list_accounts", _external=True),
         ),
         status.HTTP_200_OK,
     )
@@ -50,39 +49,69 @@ def create_accounts():
     account.deserialize(request.get_json())
     account.create()
     message = account.serialize()
-    # Uncomment once get_accounts has been implemented
-    # location_url = url_for("get_accounts", account_id=account.id, _external=True)
-    location_url = "/"  # Remove once get_accounts has been implemented
+    location_url = url_for("get_accounts", account_id=account.id, _external=True)
     return make_response(
         jsonify(message), status.HTTP_201_CREATED, {"Location": location_url}
     )
+
 
 ######################################################################
 # LIST ALL ACCOUNTS
 ######################################################################
 
-# ... place you code here to LIST accounts ...
+@app.route("/accounts", methods=["GET"])
+def list_accounts():
+    """Return every account as a JSON list, including an empty list."""
+    app.logger.info("Request to list Accounts")
+    return jsonify([account.serialize() for account in Account.all()]), status.HTTP_200_OK
 
 
 ######################################################################
 # READ AN ACCOUNT
 ######################################################################
 
-# ... place you code here to READ an account ...
+@app.route("/accounts/<int:account_id>", methods=["GET"])
+def get_accounts(account_id):
+    """Read an account or return 404 when the identifier does not exist."""
+    app.logger.info("Request to read Account %s", account_id)
+    account = Account.find(account_id)
+    if account is None:
+        abort(status.HTTP_404_NOT_FOUND, f"Account with id '{account_id}' was not found.")
+    return jsonify(account.serialize()), status.HTTP_200_OK
 
 
 ######################################################################
 # UPDATE AN EXISTING ACCOUNT
 ######################################################################
 
-# ... place you code here to UPDATE an account ...
+@app.route("/accounts/<int:account_id>", methods=["PUT"])
+def update_accounts(account_id):
+    """Replace an account's fields while preserving its resource identifier."""
+    app.logger.info("Request to update Account %s", account_id)
+    check_content_type("application/json")
+    account = Account.find(account_id)
+    if account is None:
+        abort(status.HTTP_404_NOT_FOUND, f"Account with id '{account_id}' was not found.")
+    # Validate a detached object first so invalid data cannot partially mutate
+    # the persistent account held by the SQLAlchemy session.
+    validated = Account().deserialize(request.get_json())
+    account.deserialize(validated.serialize())
+    account.update()
+    return jsonify(account.serialize()), status.HTTP_200_OK
 
 
 ######################################################################
 # DELETE AN ACCOUNT
 ######################################################################
 
-# ... place you code here to DELETE an account ...
+@app.route("/accounts/<int:account_id>", methods=["DELETE"])
+def delete_accounts(account_id):
+    """Delete an account; repeated deletions remain successful and idempotent."""
+    app.logger.info("Request to delete Account %s", account_id)
+    account = Account.find(account_id)
+    if account is not None:
+        account.delete()
+    return "", status.HTTP_204_NO_CONTENT
 
 
 ######################################################################
@@ -93,7 +122,7 @@ def create_accounts():
 def check_content_type(media_type):
     """Checks that the media type is correct"""
     content_type = request.headers.get("Content-Type")
-    if content_type and content_type == media_type:
+    if request.mimetype == media_type:
         return
     app.logger.error("Invalid Content-Type: %s", content_type)
     abort(
