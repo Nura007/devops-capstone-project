@@ -1,0 +1,27 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: accounts-cd-
+spec:
+  pipelineRef:
+    name: cd-pipeline
+  taskRunTemplate:
+    serviceAccountName: pipeline
+    podTemplate:
+      securityContext:
+        fsGroup: 65532
+  timeouts:
+    pipeline: 30m0s
+  params:
+    - name: repo-url
+      value: https://github.com/Nura007/devops-capstone-project.git
+    - name: branch
+      value: main
+    - name: build-image
+      value: capstone-registry:5000/accounts:cd1
+    - name: registry-tls-verify
+      value: "false"
+  workspaces:
+    - name: pipeline-workspace
+      persistentVolumeClaim:
+        claimName: pipelinerun-pvc

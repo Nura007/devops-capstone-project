@@ -16,6 +16,10 @@ spec:
     - name: build-image
       type: string
       description: Complete registry/repository:tag for the resulting image.
+    - name: registry-tls-verify
+      type: string
+      default: "true"
+      description: Keep true except for an isolated local development registry.
   tasks:
     - name: init
       taskRef:
@@ -56,12 +60,13 @@ spec:
       runAfter: [lint, tests]
       taskRef:
         name: buildah
-        kind: ClusterTask
       params:
         - name: IMAGE
           value: $(params.build-image)
         - name: STORAGE_DRIVER
           value: vfs
+        - name: TLSVERIFY
+          value: $(params.registry-tls-verify)
       workspaces:
         - name: source
           workspace: pipeline-workspace
